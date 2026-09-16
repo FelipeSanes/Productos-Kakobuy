@@ -32,6 +32,17 @@ la galería.
    referencia. Puntuá la similitud de 0 a 100. Prestá atención a detalles
    que delatan una réplica de baja calidad: logo mal proporcionado,
    materiales que se ven distintos, costuras, empaque.
+   **Mirá TODAS las fotos de la galería, no solo la primera o la que
+   matcheó en la búsqueda por imagen.** Caso real: un listado apareció
+   por búsqueda de imagen con una foto idéntica a la referencia oficial
+   (probablemente robada del marketing de la marca original para atraer
+   clics), pero el resto de las fotos de ese mismo listado mostraban un
+   producto completamente distinto — la foto "gancho" no reflejaba lo
+   que realmente se vende. Si las fotos de un mismo listado son
+   inconsistentes entre sí (silueta/diseño distinto de una foto a otra),
+   es señal de listado engañoso: DESCARTALO y explicá la inconsistencia
+   en el motivo, no promedies los scores como si todas las fotos fueran
+   del mismo producto.
    **Fotos de almacén/stock real:** si entre las fotos del listado hay
    alguna que se vea tomada en un depósito/almacén real (fondo simple sin
    estudio, cajas, pilas del mismo producto, luz de celular en vez de
