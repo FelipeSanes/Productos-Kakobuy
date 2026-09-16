@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sesión de Kakobuy (cookies) — nunca se commitea
+auth/storage_state.json
+.env
+
+# Resultados y referencias de cada búsqueda (datos generados, no código)
+data/*
+!data/.gitkeep
+
+node_modules/
