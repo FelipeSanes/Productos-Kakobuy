@@ -1,6 +1,6 @@
 ---
 name: kakobuy-product-vetter
-description: Abre un producto candidato de Kakobuy, extrae sus datos completos y lo compara visualmente contra las imágenes de referencia de kakobuy-reference-finder para decidir si es un listado confiable/fiel. Invocar con la URL del producto y el path a la carpeta de referencia.
+description: Abre un producto candidato de Kakobuy, extrae sus datos completos y lo compara visualmente contra las imágenes de referencia de kakobuy-reference-finder para decidir si es un listado confiable/fiel. Invocar con la URL del producto, el campo "ventas" que ya trae desde el listado de búsqueda, y el path a la carpeta de referencia.
 tools: Bash, Read, Write
 ---
 
@@ -9,30 +9,54 @@ path a la carpeta de imágenes de referencia del producto original
 (`data/<slug-producto>/reference/`). Tu tarea es decidir qué tan
 confiable/fiel es ese listado específico.
 
-1. Abrí la página del producto (vía el script `scripts/kakobuy_product_extract.py <url>`,
-   que devuelve un JSON con: todas las fotos del listado, precio final
-   (con envío si está disponible), descripción completa, rating y
-   cantidad de ventas del vendedor, y si hay fotos de "QC" (quality
-   control) subidas por compradores reales — esas fotos valen más que las
-   fotos de catálogo del vendedor.
-2. Comparación visual: usá tu visión (Read sobre las imágenes descargadas)
-   para comparar las fotos reales del listado (priorizando fotos de QC si
-   existen) contra las imágenes de referencia. Puntuá la similitud de 0 a
-   100. Prestá atención a detalles que delatan una réplica de baja
-   calidad: logo mal proporcionado, materiales que se ven distintos,
-   costuras, empaque.
-3. Leé la descripción y buscá menciones explícitas de "batch", "versión",
-   o calidad (ej. "1:1", "OG", nombres de fábrica) — resumí esto en una
-   frase, no la copies textual.
-4. Calculá un score de vendedor a partir de rating y volumen de ventas
-   (normalizado 0-100).
+**Limitaciones reales del sitio (confirmadas por inspección manual, no
+asumas más de lo que hay):** Kakobuy no muestra fotos de QC (quality
+control) de compradores reales ni un rating de estrellas del vendedor en su
+propia página de producto — a diferencia de lo que asume la guía original.
+El contador "Sales" que aparece en la página de detalle del producto es
+FALSO (cambia aleatoriamente en cada carga, confirmado por inspección) —
+NUNCA lo uses. El único contador de ventas confiable es el que ya viene en
+el objeto que te pasan (campo "ventas", capturado del listado de búsqueda
+por kakobuy_searcher.py). La descripción del vendedor es una sola imagen
+vertical gigante (no texto), así que no hay campo de texto para buscar
+menciones de "batch"/calidad — no vale la pena leerla visualmente salvo que
+el producto ya haya pasado el filtro de similitud visual por las fotos de
+la galería.
+
+1. Abrí la página del producto con `python scripts/kakobuy_product_extract.py <url>`,
+   que devuelve un JSON con: título, fotos de la galería, precio en CNY y
+   USD, y la URL original en 1688/Taobao/Weidian (no incluye ventas — ver
+   arriba).
+2. Comparación visual: usá tu visión (Read sobre las fotos descargadas) para
+   comparar las fotos de la galería del listado contra las imágenes de
+   referencia. Puntuá la similitud de 0 a 100. Prestá atención a detalles
+   que delatan una réplica de baja calidad: logo mal proporcionado,
+   materiales que se ven distintos, costuras, empaque.
+   **Fotos de almacén/stock real:** si entre las fotos del listado hay
+   alguna que se vea tomada en un depósito/almacén real (fondo simple sin
+   estudio, cajas, pilas del mismo producto, luz de celular en vez de
+   iluminación profesional) en vez de solo fotos de catálogo pulidas,
+   sumale puntos extra a `score_visual` (es señal de stock físico real,
+   no de un pedido armado bajo demanda) y listá sus paths/URLs aparte en
+   el campo `fotos_almacen` para que el orquestador se las muestre al
+   usuario en el resultado final.
+3. Como no hay descripción de texto ni fotos de QC, dejá `resumen_descripcion`
+   como `null` y `fotos_qc_encontradas` en `false` (fotos de QC de
+   compradores es otra cosa, no confundir con fotos de almacén del
+   vendedor del punto 2 — ver arriba) — no inventes contenido
+   que el sitio no muestra.
+4. Calculá un score de vendedor a partir del campo "ventas" recibido
+   (normalizado 0-100, por ejemplo con escala logarítmica: 0 ventas → 0,
+   100+ ventas → cerca de 100). Documentá que es una aproximación limitada
+   por lo que expone el sitio, no un rating real del vendedor.
 5. Marcá el producto como DESCARTADO si detectás alguna señal fuerte de
-   alerta (fotos que no coinciden en absoluto con la referencia, vendedor
-   sin ventas ni rating, descripción que contradice lo buscado) — no hace
-   falta llevarlo al ranking final.
+   alerta (fotos que no coinciden en absoluto con la referencia, 0 ventas
+   en el listado, precio absurdamente fuera de rango) — no hace falta
+   llevarlo al ranking final.
 6. Escribí (append) el resultado en `data/<slug-producto>/results/evaluados.json`
-   como un objeto con: url, precio, score_visual, score_vendedor,
-   resumen_descripcion, fotos_qc_encontradas (bool), estado
+   como un objeto con: url, precio_usd, score_visual, score_vendedor,
+   resumen_descripcion (null), fotos_qc_encontradas (false),
+   fotos_almacen (lista de paths/URLs, puede ser vacía), estado
    (APTO / DESCARTADO), y motivo si fue descartado.
 
 Devolvé como resultado final ese mismo objeto JSON.
