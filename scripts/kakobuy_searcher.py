@@ -3,18 +3,29 @@ Agente 2 — Kakobuy Searcher (automatización pura, sin LLM).
 
 Ejecuta una búsqueda en Kakobuy (por texto y/o por imagen de referencia) y
 devuelve el listado de resultados tal como aparece en la vista de lista
-(sin abrir cada producto). Usa la sesión guardada por auth/login.py.
+(sin abrir cada producto en profundidad — solo se abre brevemente cada
+card para capturar la URL real, porque el sitio no expone <a href> en la
+lista, y se cierra esa pestaña enseguida). Usa la sesión guardada por
+auth/login.py.
 
 Uso:
     python scripts/kakobuy_searcher.py --text "nombre del producto" \
+        [--text "variante en chino"] \
         [--image data/<slug>/reference/img1.jpg] \
         --out data/<slug>/results/listado.json
 
-NOTA: pendiente de inspección manual del sitio (sección 1 de la guía):
-URL de búsqueda por texto, endpoint/flujo de búsqueda por imagen, y
-selectores de la página de resultados (título, precio, link, thumbnail,
-rating/ventas del vendedor). Los placeholders de abajo hay que
-reemplazarlos por los valores reales antes de que esto funcione.
+Notas de la inspección manual del sitio (ver docs/guia-agente-kakobuy.md):
+- No hay Cloudflare challenge bloqueando la búsqueda (Turnstile está cargado
+  en la página pero no se activa para este flujo).
+- La home tiene DOS inputs con el mismo placeholder (uno en el header, otro
+  en el buscador principal) — hay que escopear el selector al <form> que
+  contiene #search_btn, si no se llena el campo equivocado.
+- La primera vez que se busca en la cuenta aparece un modal "Search Terms
+  of Service" que hay que aceptar (después no vuelve a aparecer).
+- Las cards de resultado no tienen href: al clickear abren una pestaña
+  nueva (window.open) hacia item.kakobuy.com/item/details?url=<marketplace
+  url original, urlencoded>. Por eso se captura la URL con
+  context.expect_page() y se cierra la pestaña sin cargarla del todo.
 """
 
 import argparse
@@ -22,72 +33,132 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page, sync_playwright
 
 STORAGE_STATE_PATH = Path(__file__).parent.parent / "auth" / "storage_state.json"
 
-SEARCH_URL_TEMPLATE = "https://kakobuy.com/search?q={query}"  # TODO: confirmar patrón real
-RESULT_ITEM_SELECTOR = "TODO"
-RESULT_TITLE_SELECTOR = "TODO"
-RESULT_PRICE_SELECTOR = "TODO"
-RESULT_LINK_SELECTOR = "TODO"
-RESULT_THUMBNAIL_SELECTOR = "TODO"
-RESULT_SELLER_SELECTOR = "TODO"  # rating/ventas si aparece en la vista de lista
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+)
 
-IMAGE_SEARCH_UPLOAD_SELECTOR = "TODO"  # solo si --image
+HOME_URL = "https://kakobuy.com/"
+SEARCH_FORM = "form:has(#search_btn)"
+RESULT_CARD = ".shop-card"
 
 
-def search_by_text(page, query: str) -> list[dict]:
-    page.goto(SEARCH_URL_TEMPLATE.format(query=quote(query)))
-    page.wait_for_selector(RESULT_ITEM_SELECTOR)
+def _accept_terms_if_present(page: Page) -> None:
+    agree = page.locator(".confim_true:visible").first
+    try:
+        if agree.count() > 0:
+            agree.click(timeout=3000)
+    except Exception:
+        pass
 
+
+def _wait_for_results(page: Page) -> None:
+    page.wait_for_timeout(2000)
+    _accept_terms_if_present(page)
+    page.wait_for_timeout(2000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=15000)
+    except Exception:
+        pass
+
+
+def _extract_cards(page: Page, origen: str, context, max_cards: int) -> list[dict]:
+    cards = page.locator(RESULT_CARD)
+    n = min(cards.count(), max_cards)
     items = []
-    for el in page.query_selector_all(RESULT_ITEM_SELECTOR):
+    for i in range(n):
+        card = cards.nth(i)
+        try:
+            titulo = card.locator("h3 span[title]").get_attribute("title")
+            precio = card.locator(".price").inner_text()
+            thumbnail = card.locator(".pic img").get_attribute("src")
+            plataforma_icon = card.locator("h3 .el-image.icon img").get_attribute("src")
+            sales_text = card.locator(".sales").inner_text() if card.locator(".sales").count() else None
+        except Exception:
+            continue
+
+        url = None
+        new_page = None
+        try:
+            with context.expect_page(timeout=4000) as new_page_info:
+                card.click()
+            new_page = new_page_info.value
+            url = new_page.url
+        except Exception:
+            url = None
+        finally:
+            if new_page is not None:
+                try:
+                    new_page.close()
+                except Exception:
+                    pass
+
         items.append(
             {
-                "titulo": el.query_selector(RESULT_TITLE_SELECTOR).inner_text(),
-                "precio": el.query_selector(RESULT_PRICE_SELECTOR).inner_text(),
-                "url": el.query_selector(RESULT_LINK_SELECTOR).get_attribute("href"),
-                "thumbnail": el.query_selector(RESULT_THUMBNAIL_SELECTOR).get_attribute("src"),
-                "vendedor_info": (
-                    el.query_selector(RESULT_SELLER_SELECTOR).inner_text()
-                    if el.query_selector(RESULT_SELLER_SELECTOR)
-                    else None
-                ),
-                "query_origen": query,
+                "titulo": titulo,
+                "precio": precio,
+                "ventas": sales_text,
+                "url": url,
+                "thumbnail": thumbnail,
+                "plataforma": "1688" if plataforma_icon and "1688" in plataforma_icon else "taobao/weidian",
+                "query_origen": origen,
             }
         )
     return items
 
 
-def search_by_image(page, image_path: str) -> list[dict]:
-    raise NotImplementedError(
-        "Falta inspeccionar el flujo de búsqueda por imagen de Kakobuy "
-        "(¿sube a un endpoint separado? ¿input file directo?)."
-    )
+def search_by_text(page: Page, context, query: str, max_cards: int) -> list[dict]:
+    page.goto(HOME_URL, wait_until="networkidle")
+    search_input = page.locator(f"{SEARCH_FORM} input[type='text']")
+    search_input.fill(query)
+    page.click("#search_btn")
+    _wait_for_results(page)
+    return _extract_cards(page, query, context, max_cards)
+
+
+def search_by_image(page: Page, context, image_path: str, max_cards: int) -> list[dict]:
+    page.goto(HOME_URL, wait_until="networkidle")
+    file_input = page.locator(f"{SEARCH_FORM} input[type='file']")
+    file_input.set_input_files(image_path)
+    _wait_for_results(page)
+    return _extract_cards(page, f"image:{image_path}", context, max_cards)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--text", action="append", default=[], help="Query de texto (puede repetirse para variantes)")
+    parser.add_argument("--text", action="append", default=[], help="Query de texto (repetible para variantes)")
     parser.add_argument("--image", help="Path a imagen de referencia")
     parser.add_argument("--out", required=True, help="Path del JSON de salida")
+    parser.add_argument(
+        "--max-cards",
+        type=int,
+        default=10,
+        help="Máximo de resultados a abrir por búsqueda para capturar su URL (default 10)",
+    )
     args = parser.parse_args()
 
     if not STORAGE_STATE_PATH.exists():
-        raise SystemExit(f"No existe {STORAGE_STATE_PATH}. Corré primero auth/login.py")
+        raise SystemExit(
+            f"No existe {STORAGE_STATE_PATH}. Corré primero:\n"
+            "  python auth/login.py request\n"
+            "  python auth/login.py verify <codigo>"
+        )
 
     results: list[dict] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(storage_state=str(STORAGE_STATE_PATH))
+        context = browser.new_context(storage_state=str(STORAGE_STATE_PATH), user_agent=USER_AGENT)
         page = context.new_page()
 
         for query in args.text:
-            results.extend(search_by_text(page, query))
+            results.extend(search_by_text(page, context, query, args.max_cards))
 
         if args.image:
-            results.extend(search_by_image(page, args.image))
+            results.extend(search_by_image(page, context, args.image, args.max_cards))
 
         browser.close()
 

@@ -32,8 +32,11 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
    producto dos veces. Descartá también por reglas obvias (precio
    absurdamente fuera de rango).
 5. Para cada candidato único no descartado, invocá el subagente
-   `kakobuy-product-vetter` con la URL del producto y el path a
-   `data/<slug>/reference/`.
+   `kakobuy-product-vetter` con la URL del producto, el campo `ventas` que
+   ya trae ese candidato desde `listado.json` (el contador de ventas de la
+   página de detalle del producto es falso — ver `kakobuy_product_extract.py`
+   — así que el dato bueno es el que ya tenés del listado, no lo vuelvas a
+   pedir), y el path a `data/<slug>/reference/`.
 6. Con los resultados del Vetter, calculá el score final combinado:
 
    ```
