@@ -42,7 +42,21 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
      (como las de zapatillas) el buscador funcionó perfecto. Si
      `kakobuy-reference-finder` solo consigue fotos lifestyle, priorizá
      igual la que tenga menos fondo/contexto ajeno al producto.
-3. **Priorizá candidatos con fotos de almacén/stock real** por sobre
+3. **Productos muy nuevos/nicho pueden no tener inventario todavía.** Para
+   un producto lanzado hace pocos meses (probado con un dispositivo
+   electrónico de 2026), decenas de variantes de texto en chino (incluso
+   sin nombrar la marca) devolvieron 0 resultados o matches totalmente
+   irrelevantes (el buscador degrada a matchear solo la palabra genérica
+   más común de la query, ej. "手环"/pulsera, ignorando el resto). Esto es
+   distinto al bloqueo de marca del punto 1: acá simplemente no hay
+   listados reales todavía porque las cadenas de réplica china no
+   alcanzaron a fabricar ese producto puntual. Si después de ~5-6
+   variantes de texto razonables seguís sin nada relevante, es más
+   probable que sea esto que un problema de tu query — decilo
+   explícitamente al usuario en vez de seguir generando variantes ad
+   infinitum.
+
+4. **Priorizá candidatos con fotos de almacén/stock real** por sobre
    fotos de catálogo pulidas. Un listado que incluye fotos que se ven
    como tomadas en un depósito/almacén (fondo simple, cajas, pilas del
    mismo producto, luz de celular en vez de estudio) es una señal de que
