@@ -42,21 +42,30 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
      (como las de zapatillas) el buscador funcionó perfecto. Si
      `kakobuy-reference-finder` solo consigue fotos lifestyle, priorizá
      igual la que tenga menos fondo/contexto ajeno al producto.
-3a. **Para gadgets con hardware propietario atado a un modelo de
-   suscripción (ej. WHOOP), 1688 puede tener solo los accesorios
-   (bandas/correas/fundas), no el sensor/dispositivo en sí.** Probado
-   con WHOOP 5.0: docenas de variantes en chino (con "本体"/cuerpo
-   principal, "主机"/host, "传感器"/sensor, "含传感器"/con sensor, etc.)
-   devolvieron 0 resultados, ruido total (sensores de pesas de cocina,
-   repuestos de auto) o, en el mejor caso, únicamente correas de
-   repuesto — nunca el dispositivo. La búsqueda por imagen con la foto
-   del sensor solo tampoco ayudó (matcheó por forma con power banks). Es
-   una limitación de mercado real, no de la query: la banda es fácil de
-   fabricar en cualquier taller textil, el sensor es electrónica
-   propietaria mucho más difícil de clonar/conseguir suelta. Si el
-   usuario pidió explícitamente el dispositivo (no la banda) y después
-   de ~10 variantes solo aparecen correas, decilo así de claro en vez de
-   ofrecer una correa como si fuera el producto.
+3a. **Para wearables electrónicos (smartwatches, trackers), 1688 suele
+   tener solo accesorios (correas/fundas/protectores de pantalla), no el
+   dispositivo en sí — patrón confirmado con 2 marcas distintas, no es
+   un caso aislado.**
+   - WHOOP 5.0: docenas de variantes en chino ("本体"/cuerpo principal,
+     "主机"/host, "传感器"/sensor, "含传感器"/con sensor) devolvieron 0
+     resultados, ruido total (sensores de pesas de cocina, repuestos de
+     auto) o, en el mejor caso, únicamente correas de repuesto. Búsqueda
+     por imagen con foto del sensor solo tampoco ayudó (matcheó por
+     forma con power banks).
+   - Amazfit (marca china real, no debería tener filtro de marca):
+     "amazfit" solo → 10 resultados, TODOS accesorios (protectores de
+     pantalla templados, correas) para modelos Active/T-Rex/GTR. "华米"
+     (nombre del fabricante) → 3 resultados, también todo correas. Ni un
+     solo reloj real en ninguna variante probada.
+   - Conclusión: parece que 1688/Kakobuy está mucho mejor surtido para
+     moda/accesorios (ropa, calzado, carteras, fundas, correas) que para
+     el dispositivo electrónico en sí — sea porque el accesorio es más
+     fácil/barato de fabricar sin infringir nada, sea porque el
+     electrónico genuino se vende por canales mayoristas distintos a los
+     que indexa esta búsqueda. Si el usuario pidió explícitamente el
+     dispositivo (no el accesorio) y después de ~10 variantes solo
+     aparecen correas/fundas/protectores, decilo así de claro en vez de
+     ofrecer un accesorio como si fuera el producto.
 
 3. **Productos muy nuevos/nicho pueden no tener inventario todavía.** Para
    un producto lanzado hace pocos meses (probado con un dispositivo
