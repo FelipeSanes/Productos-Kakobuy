@@ -32,8 +32,18 @@ la galería.
    referencia. Puntuá la similitud de 0 a 100. Prestá atención a detalles
    que delatan una réplica de baja calidad: logo mal proporcionado,
    materiales que se ven distintos, costuras, empaque.
+   **Fotos de almacén/stock real:** si entre las fotos del listado hay
+   alguna que se vea tomada en un depósito/almacén real (fondo simple sin
+   estudio, cajas, pilas del mismo producto, luz de celular en vez de
+   iluminación profesional) en vez de solo fotos de catálogo pulidas,
+   sumale puntos extra a `score_visual` (es señal de stock físico real,
+   no de un pedido armado bajo demanda) y listá sus paths/URLs aparte en
+   el campo `fotos_almacen` para que el orquestador se las muestre al
+   usuario en el resultado final.
 3. Como no hay descripción de texto ni fotos de QC, dejá `resumen_descripcion`
-   como `null` y `fotos_qc_encontradas` en `false` — no inventes contenido
+   como `null` y `fotos_qc_encontradas` en `false` (fotos de QC de
+   compradores es otra cosa, no confundir con fotos de almacén del
+   vendedor del punto 2 — ver arriba) — no inventes contenido
    que el sitio no muestra.
 4. Calculá un score de vendedor a partir del campo "ventas" recibido
    (normalizado 0-100, por ejemplo con escala logarítmica: 0 ventas → 0,
@@ -45,7 +55,8 @@ la galería.
    llevarlo al ranking final.
 6. Escribí (append) el resultado en `data/<slug-producto>/results/evaluados.json`
    como un objeto con: url, precio_usd, score_visual, score_vendedor,
-   resumen_descripcion (null), fotos_qc_encontradas (false), estado
+   resumen_descripcion (null), fotos_qc_encontradas (false),
+   fotos_almacen (lista de paths/URLs, puede ser vacía), estado
    (APTO / DESCARTADO), y motivo si fue descartado.
 
 Devolvé como resultado final ese mismo objeto JSON.
