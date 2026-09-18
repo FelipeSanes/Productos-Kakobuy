@@ -32,6 +32,11 @@ Notas de la inspección manual del sitio (ver docs/guia-agente-kakobuy.md):
   reintenta sola hasta MAX_RETRIES veces antes de devolver 0 — no es
   opcional, sin esto la mayoría de las búsquedas reales se leen como
   "no hay resultados" y es mentira.
+- Algunas URLs que devuelve el listado apuntan a ofertas de 1688 ya
+  borradas ("This product may not exist"). Confirmado: 2 de 3 links
+  entregados al usuario en una corrida real resultaron muertos. Por eso
+  kakobuy_product_extract.py valida la página antes de devolver datos —
+  nunca mandes un link al usuario sin haberlo verificado primero.
 """
 
 import argparse

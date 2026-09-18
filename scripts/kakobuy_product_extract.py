@@ -67,7 +67,13 @@ def extract(url: str) -> dict:
         context = browser.new_context(storage_state=str(STORAGE_STATE_PATH), user_agent=USER_AGENT)
         page = context.new_page()
         page.goto(url, wait_until="networkidle", timeout=30000)
-        page.wait_for_selector(TITLE_SELECTOR, timeout=15000)
+        try:
+            page.wait_for_selector(TITLE_SELECTOR, timeout=12000)
+        except Exception:
+            if page.locator("text=This product may not exist").count() > 0:
+                browser.close()
+                return {"url": url, "existe": False}
+            raise
         page.wait_for_timeout(1000)
 
         titulo = page.locator(TITLE_SELECTOR).inner_text()
@@ -85,6 +91,7 @@ def extract(url: str) -> dict:
 
     return {
         "url": url,
+        "existe": True,
         "titulo": titulo,
         "fotos": fotos,
         "precio_cny": float(precio_match.group(1)) if precio_match else None,
