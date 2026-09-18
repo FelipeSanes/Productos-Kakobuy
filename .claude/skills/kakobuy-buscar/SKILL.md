@@ -67,6 +67,23 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
      aparecen correas/fundas/protectores, decilo así de claro en vez de
      ofrecer un accesorio como si fuera el producto.
 
+2b. **La búsqueda de texto de Kakobuy degrada mal con queries de 3+
+   calificadores.** Confirmado en 4 categorías distintas (electrónica,
+   relojes, indumentaria de rugby, y antes con la camisa Ralph Lauren):
+   apenas la query tiene marca + tipo de prenda/producto + un calificador
+   más (color, bordado, estilo), el resultado colapsa a matchear solo el
+   sustantivo más genérico e ignora todo lo demás — ej. "橄榄球运动长裤
+   刺绣字母" (rugby sports pants embroidered letters) devuelve las mismas
+   sweatpants genéricas que "运动裤" solo, sin nada de rugby. No sirve
+   agregar más adjetivos para afinar: al contrario, cada calificador
+   extra que la query no reconoce como término común del catálogo tiene
+   más chances de ser ignorado. Mejor estrategia: probá primero el
+   sustantivo + UN calificador fuerte (marca, si no está bloqueada;
+   si no, el rasgo más distintivo y común en títulos reales de listados
+   — mirá los `sample_titles` de una búsqueda genérica para copiar el
+   vocabulario exacto que usan los vendedores) antes de armar frases
+   largas y descriptivas.
+
 3. **Productos muy nuevos/nicho pueden no tener inventario todavía.** Para
    un producto lanzado hace pocos meses (probado con un dispositivo
    electrónico de 2026), decenas de variantes de texto en chino (incluso
