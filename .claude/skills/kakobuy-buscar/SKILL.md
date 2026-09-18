@@ -20,6 +20,18 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
 
 ## Reglas aprendidas de uso real (no son opcionales)
 
+0. **CRÍTICO: el sitio falla transitoriamente la mayoría de las veces,
+   sin relación con la query. Reintentá 6-8 veces antes de concluir "0
+   resultados".** Confirmado: la MISMA query exacta dio 0 cards en 5
+   corridas seguidas y 40 cards (reales) en la 6ta — no era la query, era
+   el sitio. Con solo 3 intentos (lo que hacía antes) esto se leía como
+   "no hay resultados" y era mentira. Nunca concluyas "no existe" con
+   menos de 6 intentos reales. Patrón para cada intento: `fill` query,
+   click `#search_btn`, esperar ~2.5s, click `.confim_true:visible`
+   (ignorar error si no aparece), esperar ~2.5s más, leer
+   `.shop-card` count. Si sale 0, repetir de cero (nuevo browser/page),
+   no reusar la misma page.
+
 1. **Nunca busques el nombre de la marca en español/inglés tal cual.**
    Kakobuy bloquea con un error explícito ("Kakobuy cannot provide the
    search results of this product: <marca>") las queries de texto que

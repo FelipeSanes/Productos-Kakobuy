@@ -26,6 +26,12 @@ Notas de la inspección manual del sitio (ver docs/guia-agente-kakobuy.md):
   nueva (window.open) hacia item.kakobuy.com/item/details?url=<marketplace
   url original, urlencoded>. Por eso se captura la URL con
   context.expect_page() y se cierra la pestaña sin cargarla del todo.
+- CRÍTICO: el sitio falla transitoriamente la MAYORÍA de las veces —
+  confirmado que la misma query exacta dio 0 resultados 5 veces seguidas
+  y 40 (reales) en el 6to intento, sin cambiar nada. Por eso cada búsqueda
+  reintenta sola hasta MAX_RETRIES veces antes de devolver 0 — no es
+  opcional, sin esto la mayoría de las búsquedas reales se leen como
+  "no hay resultados" y es mentira.
 """
 
 import argparse
@@ -45,6 +51,7 @@ USER_AGENT = (
 HOME_URL = "https://kakobuy.com/"
 SEARCH_FORM = "form:has(#search_btn)"
 RESULT_CARD = ".shop-card"
+MAX_RETRIES = 8
 
 
 def _accept_terms_if_present(page: Page) -> None:
@@ -112,19 +119,27 @@ def _extract_cards(page: Page, origen: str, context, max_cards: int) -> list[dic
 
 
 def search_by_text(page: Page, context, query: str, max_cards: int) -> list[dict]:
-    page.goto(HOME_URL, wait_until="networkidle")
-    search_input = page.locator(f"{SEARCH_FORM} input[type='text']")
-    search_input.fill(query)
-    page.click("#search_btn")
-    _wait_for_results(page)
+    for attempt in range(1, MAX_RETRIES + 1):
+        page.goto(HOME_URL, wait_until="networkidle")
+        search_input = page.locator(f"{SEARCH_FORM} input[type='text']")
+        search_input.fill(query)
+        page.click("#search_btn")
+        _wait_for_results(page)
+        if page.locator(RESULT_CARD).count() > 0:
+            break
+        print(f"  [{query!r}] intento {attempt}/{MAX_RETRIES}: 0 resultados, reintentando...")
     return _extract_cards(page, query, context, max_cards)
 
 
 def search_by_image(page: Page, context, image_path: str, max_cards: int) -> list[dict]:
-    page.goto(HOME_URL, wait_until="networkidle")
-    file_input = page.locator(f"{SEARCH_FORM} input[type='file']")
-    file_input.set_input_files(image_path)
-    _wait_for_results(page)
+    for attempt in range(1, MAX_RETRIES + 1):
+        page.goto(HOME_URL, wait_until="networkidle")
+        file_input = page.locator(f"{SEARCH_FORM} input[type='file']")
+        file_input.set_input_files(image_path)
+        _wait_for_results(page)
+        if page.locator(RESULT_CARD).count() > 0:
+            break
+        print(f"  [image:{image_path}] intento {attempt}/{MAX_RETRIES}: 0 resultados, reintentando...")
     return _extract_cards(page, f"image:{image_path}", context, max_cards)
 
 
