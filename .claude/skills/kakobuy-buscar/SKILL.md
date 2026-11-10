@@ -20,17 +20,19 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
 
 ## Reglas aprendidas de uso real (no son opcionales)
 
-0. **CRÍTICO: el sitio falla transitoriamente la mayoría de las veces,
-   sin relación con la query. Reintentá 6-8 veces antes de concluir "0
-   resultados".** Confirmado: la MISMA query exacta dio 0 cards en 5
-   corridas seguidas y 40 cards (reales) en la 6ta — no era la query, era
-   el sitio. Con solo 3 intentos (lo que hacía antes) esto se leía como
-   "no hay resultados" y era mentira. Nunca concluyas "no existe" con
-   menos de 6 intentos reales. Patrón para cada intento: `fill` query,
-   click `#search_btn`, esperar ~2.5s, click `.confim_true:visible`
-   (ignorar error si no aparece), esperar ~2.5s más, leer
-   `.shop-card` count. Si sale 0, repetir de cero (nuevo browser/page),
-   no reusar la misma page.
+0. **CRÍTICO: los "0 resultados" eran espera corta, no el sitio.** Los
+   resultados tardan 5-12s (XHR cifrado a v1.kakoapi.com); esperar ~5s
+   fijos daba 0 falsos la mayoría de las veces. `kakobuy_searcher.py`
+   ahora pollea `.shop-card` hasta 30s y navega directo a
+   `/item/shop?keyword=<query>` — usá siempre el script, no Playwright
+   ad-hoc con esperas fijas.
+
+0b. **Leé las 3 pestañas: Top / 1688 / Taobao.** "Top" está sesgada a
+   1688; Taobao tiene stock que en Top no aparece (caso real: King Seiko
+   VANAC genuino con 400+ ventas solo en Taobao, invisible en Top). El
+   script lee las 3 por defecto. Para productos de marca/originales
+   mirá Taobao primero; para réplicas/genéricos, 1688. Taobao acepta
+   bien códigos de modelo (ej. "精工 SLA087").
 
 1. **Nunca busques el nombre de la marca en español/inglés tal cual.**
    Kakobuy bloquea con un error explícito ("Kakobuy cannot provide the

@@ -1,46 +1,40 @@
 """
 Agente 2 — Kakobuy Searcher (automatización pura, sin LLM).
 
-Ejecuta una búsqueda en Kakobuy (por texto y/o por imagen de referencia) y
-devuelve el listado de resultados tal como aparece en la vista de lista
-(sin abrir cada producto en profundidad — solo se abre brevemente cada
-card para capturar la URL real, porque el sitio no expone <a href> en la
-lista, y se cierra esa pestaña enseguida). Usa la sesión guardada por
-auth/login.py.
+Busca en Kakobuy por texto y/o imagen, en las 3 pestañas de resultados
+(Top / 1688 / Taobao), y devuelve el listado tal como aparece. Usa la
+sesión guardada por auth/login.py.
 
 Uso:
-    python scripts/kakobuy_searcher.py --text "nombre del producto" \
-        [--text "variante en chino"] \
-        [--image data/<slug>/reference/img1.jpg] \
+    python scripts/kakobuy_searcher.py --text "精工手表" [--text ...] \
+        [--image ref.jpg] [--tab taobao --tab 1688] \
+        [--must "seiko|精工"] [--open-urls 10] \
         --out data/<slug>/results/listado.json
 
-Notas de la inspección manual del sitio (ver docs/guia-agente-kakobuy.md):
-- No hay Cloudflare challenge bloqueando la búsqueda (Turnstile está cargado
-  en la página pero no se activa para este flujo).
-- La home tiene DOS inputs con el mismo placeholder (uno en el header, otro
-  en el buscador principal) — hay que escopear el selector al <form> que
-  contiene #search_btn, si no se llena el campo equivocado.
-- La primera vez que se busca en la cuenta aparece un modal "Search Terms
-  of Service" que hay que aceptar (después no vuelve a aparecer).
-- Las cards de resultado no tienen href: al clickear abren una pestaña
-  nueva (window.open) hacia item.kakobuy.com/item/details?url=<marketplace
-  url original, urlencoded>. Por eso se captura la URL con
-  context.expect_page() y se cierra la pestaña sin cargarla del todo.
-- CRÍTICO: el sitio falla transitoriamente la MAYORÍA de las veces —
-  confirmado que la misma query exacta dio 0 resultados 5 veces seguidas
-  y 40 (reales) en el 6to intento, sin cambiar nada. Por eso cada búsqueda
-  reintenta sola hasta MAX_RETRIES veces antes de devolver 0 — no es
-  opcional, sin esto la mayoría de las búsquedas reales se leen como
-  "no hay resultados" y es mentira.
-- Algunas URLs que devuelve el listado apuntan a ofertas de 1688 ya
-  borradas ("This product may not exist"). Confirmado: 2 de 3 links
-  entregados al usuario en una corrida real resultaron muertos. Por eso
-  kakobuy_product_extract.py valida la página antes de devolver datos —
-  nunca mandes un link al usuario sin haberlo verificado primero.
+Hallazgos de la inspección real del sitio (no repetir los errores):
+- CAUSA REAL de los "0 resultados" falsos: los resultados tardan 5-12s en
+  aparecer (se cargan por XHR cifrado a v1.kakoapi.com) y el script viejo
+  esperaba ~4s fijos. NO era flakiness del sitio: con polling de
+  `.shop-card` hasta 30s la misma query sale bien a la primera.
+- Búsqueda de texto: se puede navegar directo a
+  /item/shop?keyword=<query> (no hace falta el form de la home).
+- Hay 3 pestañas: "Top" (mezcla, sesgada a 1688), "1688" y "Taobao".
+  Taobao tiene stock que en Top no aparece (ej. relojes Seiko originales
+  con cientos de ventas). Taobao muestra 20 por página, 1688 ~50.
+- Los títulos de 1688 vienen traducidos al inglés; los de Taobao a veces
+  en chino. Filtrá con --must usando ambos idiomas.
+- La primera vez aparece un modal "Search Terms of Service"
+  (`.confim_true:visible`) que hay que aceptar.
+- Las cards no tienen href: al clickear abren pestaña nueva hacia
+  item.kakobuy.com/item/details?url=<url original>. Abrir cada card es
+  lento, por eso solo se abren las que pasan --must (hasta --open-urls).
+- Algunas URLs apuntan a ofertas ya borradas: validar siempre con
+  kakobuy_product_extract.py antes de mandarle un link al usuario.
 """
 
 import argparse
 import json
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -54,111 +48,128 @@ USER_AGENT = (
 )
 
 HOME_URL = "https://kakobuy.com/"
+SHOP_URL = "https://kakobuy.com/item/shop?keyword="
 SEARCH_FORM = "form:has(#search_btn)"
 RESULT_CARD = ".shop-card"
-MAX_RETRIES = 8
+CARD_WAIT_S = 30
+TABS = {
+    "top": "Top",
+    "1688": "Agent Shopping from - 1688",
+    "taobao": "Agent Shopping from - Taobao",
+}
+
+READ_CARDS_JS = """() => [...document.querySelectorAll('.shop-card')].map((c, i) => {
+  const t = c.querySelector('h3 span[title]');
+  const pr = c.querySelector('.price');
+  const s = c.querySelector('.sales');
+  const img = c.querySelector('.pic img');
+  const icon = c.querySelector('h3 .el-image.icon img');
+  return {idx: i, titulo: t ? t.title : '', precio: pr ? pr.innerText : '',
+          ventas: s ? s.innerText : null, thumbnail: img ? img.src : null,
+          icon: icon ? icon.src : ''};
+})"""
 
 
-def _accept_terms_if_present(page: Page) -> None:
-    agree = page.locator(".confim_true:visible").first
-    try:
-        if agree.count() > 0:
-            agree.click(timeout=3000)
-    except Exception:
-        pass
+def _first_title(page: Page) -> str | None:
+    card = page.locator(RESULT_CARD).first
+    if card.count() == 0:
+        return None
+    return card.locator("h3 span[title]").get_attribute("title")
 
 
-def _wait_for_results(page: Page) -> None:
-    page.wait_for_timeout(2000)
-    _accept_terms_if_present(page)
-    page.wait_for_timeout(2000)
-    try:
-        page.wait_for_load_state("networkidle", timeout=15000)
-    except Exception:
-        pass
-
-
-def _extract_cards(page: Page, origen: str, context, max_cards: int) -> list[dict]:
-    cards = page.locator(RESULT_CARD)
-    n = min(cards.count(), max_cards)
-    items = []
-    for i in range(n):
-        card = cards.nth(i)
+def _wait_cards(page: Page, prev_first: str | None = None) -> int:
+    """Pollea hasta que haya cards (y distintas de las de la pestaña anterior)."""
+    for _ in range(CARD_WAIT_S):
+        page.wait_for_timeout(1000)
         try:
-            titulo = card.locator("h3 span[title]").get_attribute("title")
-            precio = card.locator(".price").inner_text()
-            thumbnail = card.locator(".pic img").get_attribute("src")
-            plataforma_icon = card.locator("h3 .el-image.icon img").get_attribute("src")
-            sales_text = card.locator(".sales").inner_text() if card.locator(".sales").count() else None
+            page.locator(".confim_true:visible").first.click(timeout=300)
         except Exception:
-            continue
+            pass
+        n = page.locator(RESULT_CARD).count()
+        if n and _first_title(page) != prev_first:
+            return n
+    return 0
 
-        url = None
-        new_page = None
-        try:
-            with context.expect_page(timeout=4000) as new_page_info:
-                card.click()
-            new_page = new_page_info.value
-            url = new_page.url
-        except Exception:
+
+def _capture_url(page: Page, context, idx: int) -> str | None:
+    new_page = None
+    try:
+        with context.expect_page(timeout=6000) as info:
+            page.locator(RESULT_CARD).nth(idx).click()
+        new_page = info.value
+        return new_page.url
+    except Exception:
+        return None
+    finally:
+        if new_page is not None:
+            try:
+                new_page.close()
+            except Exception:
+                pass
+
+
+def _collect_tabs(page: Page, context, origen: str, tabs: list[str], must, open_urls: int) -> list[dict]:
+    items: list[dict] = []
+    prev_first = _first_title(page) if page.locator(RESULT_CARD).count() else None
+    for tab in tabs:
+        if tab != "top":
+            page.locator(".ant-tabs-tab", has_text=TABS[tab]).first.click()
+            if not _wait_cards(page, prev_first):
+                print(f"  [{origen}] pestaña {tab}: 0 resultados")
+                continue
+        prev_first = _first_title(page)
+        cards = page.evaluate(READ_CARDS_JS)
+        print(f"  [{origen}] pestaña {tab}: {len(cards)} resultados")
+        opened = 0
+        for c in cards:
+            relevante = bool(must.search(c["titulo"])) if must else True
             url = None
-        finally:
-            if new_page is not None:
-                try:
-                    new_page.close()
-                except Exception:
-                    pass
-
-        items.append(
-            {
-                "titulo": titulo,
-                "precio": precio,
-                "ventas": sales_text,
-                "url": url,
-                "thumbnail": thumbnail,
-                "plataforma": "1688" if plataforma_icon and "1688" in plataforma_icon else "taobao/weidian",
-                "query_origen": origen,
-            }
-        )
+            if relevante and opened < open_urls:
+                url = _capture_url(page, context, c["idx"])
+                opened += 1
+            items.append(
+                {
+                    "titulo": c["titulo"],
+                    "precio": c["precio"],
+                    "ventas": c["ventas"],
+                    "url": url,
+                    "thumbnail": c["thumbnail"],
+                    "plataforma": "1688" if "1688" in (c["icon"] or "") else "taobao/weidian",
+                    "pestana": tab,
+                    "relevante": relevante,
+                    "query_origen": origen,
+                }
+            )
     return items
 
 
-def search_by_text(page: Page, context, query: str, max_cards: int) -> list[dict]:
-    for attempt in range(1, MAX_RETRIES + 1):
-        page.goto(HOME_URL, wait_until="networkidle")
-        search_input = page.locator(f"{SEARCH_FORM} input[type='text']")
-        search_input.fill(query)
-        page.click("#search_btn")
-        _wait_for_results(page)
-        if page.locator(RESULT_CARD).count() > 0:
-            break
-        print(f"  [{query!r}] intento {attempt}/{MAX_RETRIES}: 0 resultados, reintentando...")
-    return _extract_cards(page, query, context, max_cards)
+def search_by_text(page: Page, context, query: str, tabs, must, open_urls) -> list[dict]:
+    page.goto(SHOP_URL + quote(query), wait_until="domcontentloaded")
+    if not _wait_cards(page) and "top" in tabs:
+        print(f"  [{query!r}] pestaña top: 0 resultados tras {CARD_WAIT_S}s")
+        tabs = [t for t in tabs if t != "top"]
+    return _collect_tabs(page, context, query, tabs, must, open_urls)
 
 
-def search_by_image(page: Page, context, image_path: str, max_cards: int) -> list[dict]:
-    for attempt in range(1, MAX_RETRIES + 1):
-        page.goto(HOME_URL, wait_until="networkidle")
-        file_input = page.locator(f"{SEARCH_FORM} input[type='file']")
-        file_input.set_input_files(image_path)
-        _wait_for_results(page)
-        if page.locator(RESULT_CARD).count() > 0:
-            break
-        print(f"  [image:{image_path}] intento {attempt}/{MAX_RETRIES}: 0 resultados, reintentando...")
-    return _extract_cards(page, f"image:{image_path}", context, max_cards)
+def search_by_image(page: Page, context, image_path: str, tabs, must, open_urls) -> list[dict]:
+    page.goto(HOME_URL, wait_until="networkidle")
+    page.locator(f"{SEARCH_FORM} input[type='file']").set_input_files(image_path)
+    if not _wait_cards(page):
+        print(f"  [image:{image_path}] 0 resultados tras {CARD_WAIT_S}s")
+        return []
+    # la búsqueda por imagen no siempre muestra las 3 pestañas
+    available = [t for t in tabs if t == "top" or page.locator(".ant-tabs-tab", has_text=TABS[t]).count()]
+    return _collect_tabs(page, context, f"image:{image_path}", available, must, open_urls)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--text", action="append", default=[], help="Query de texto (repetible para variantes)")
-    parser.add_argument("--image", help="Path a imagen de referencia")
+    parser.add_argument("--text", action="append", default=[], help="Query de texto (repetible)")
+    parser.add_argument("--image", action="append", default=[], help="Imagen de referencia (repetible)")
+    parser.add_argument("--tab", action="append", choices=list(TABS), help="Pestañas a leer (default: todas)")
+    parser.add_argument("--must", help="Regex (case-insensitive) que marca un título como relevante")
+    parser.add_argument("--open-urls", type=int, default=10, help="Máx. cards relevantes a abrir por pestaña para capturar URL")
     parser.add_argument("--out", required=True, help="Path del JSON de salida")
-    parser.add_argument(
-        "--max-cards",
-        type=int,
-        default=10,
-        help="Máximo de resultados a abrir por búsqueda para capturar su URL (default 10)",
-    )
     args = parser.parse_args()
 
     if not STORAGE_STATE_PATH.exists():
@@ -168,24 +179,34 @@ def main() -> None:
             "  python auth/login.py verify <codigo>"
         )
 
+    tabs = args.tab or list(TABS)
+    must = re.compile(args.must, re.I) if args.must else None
+
     results: list[dict] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(storage_state=str(STORAGE_STATE_PATH), user_agent=USER_AGENT)
         page = context.new_page()
-
         for query in args.text:
-            results.extend(search_by_text(page, context, query, args.max_cards))
-
-        if args.image:
-            results.extend(search_by_image(page, context, args.image, args.max_cards))
-
+            results.extend(search_by_text(page, context, query, tabs, must, args.open_urls))
+        for image in args.image:
+            results.extend(search_by_image(page, context, image, tabs, must, args.open_urls))
         browser.close()
+
+    seen = set()
+    deduped = []
+    for r in results:
+        key = r["url"] or (r["titulo"], r["precio"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(r)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(results, ensure_ascii=False, indent=2))
-    print(f"{len(results)} resultados -> {out_path}")
+    out_path.write_text(json.dumps(deduped, ensure_ascii=False, indent=2))
+    n_rel = sum(r["relevante"] for r in deduped)
+    print(f"{len(deduped)} resultados ({n_rel} relevantes) -> {out_path}")
 
 
 if __name__ == "__main__":
