@@ -33,6 +33,10 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
    script lee las 3 por defecto. Para productos de marca/originales
    mirá Taobao primero; para réplicas/genéricos, 1688. Taobao acepta
    bien códigos de modelo (ej. "精工 SLA087").
+   La búsqueda por IMAGEN en la pestaña Taobao fue la más efectiva: con
+   una foto lifestyle recortada a un solo reloj devolvió 12+ listados
+   exactos del modelo, mientras que el texto daba 2. Recortá la foto del
+   usuario al producto (PIL crop) antes de subirla.
 
 1. **Nunca busques el nombre de la marca en español/inglés tal cual.**
    Kakobuy bloquea con un error explícito ("Kakobuy cannot provide the
