@@ -38,6 +38,14 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
    exactos del modelo, mientras que el texto daba 2. Recortá la foto del
    usuario al producto (PIL crop) antes de subirla.
 
+0c. **Alternativa barata (el usuario no puede pagar el original):** las
+   queries de texto "平替"/"同款" + marca devolvieron basura. Lo que
+   funcionó: bajar la foto de catálogo limpia del ORIGINAL (de un
+   listado genuino de Taobao) y usarla para buscar por imagen en la
+   pestaña 1688 → aparecen homenajes con la misma silueta a $15-30.
+   Ojo: en esa búsqueda 2 de 7 candidatos eran listados gancho (la
+   miniatura no coincidía con la galería) — siempre mirá la galería.
+
 1. **Nunca busques el nombre de la marca en español/inglés tal cual.**
    Kakobuy bloquea con un error explícito ("Kakobuy cannot provide the
    search results of this product: <marca>") las queries de texto que
