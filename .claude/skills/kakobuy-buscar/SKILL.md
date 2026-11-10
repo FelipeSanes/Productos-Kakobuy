@@ -68,30 +68,17 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
      (como las de zapatillas) el buscador funcionó perfecto. Si
      `kakobuy-reference-finder` solo consigue fotos lifestyle, priorizá
      igual la que tenga menos fondo/contexto ajeno al producto.
-3a. **Para wearables electrónicos (smartwatches, trackers), 1688 suele
-   tener solo accesorios (correas/fundas/protectores de pantalla), no el
-   dispositivo en sí — patrón confirmado con 2 marcas distintas, no es
-   un caso aislado.**
-   - WHOOP 5.0: docenas de variantes en chino ("本体"/cuerpo principal,
-     "主机"/host, "传感器"/sensor, "含传感器"/con sensor) devolvieron 0
-     resultados, ruido total (sensores de pesas de cocina, repuestos de
-     auto) o, en el mejor caso, únicamente correas de repuesto. Búsqueda
-     por imagen con foto del sensor solo tampoco ayudó (matcheó por
-     forma con power banks).
-   - Amazfit (marca china real, no debería tener filtro de marca):
-     "amazfit" solo → 10 resultados, TODOS accesorios (protectores de
-     pantalla templados, correas) para modelos Active/T-Rex/GTR. "华米"
-     (nombre del fabricante) → 3 resultados, también todo correas. Ni un
-     solo reloj real en ninguna variante probada.
-   - Conclusión: parece que 1688/Kakobuy está mucho mejor surtido para
-     moda/accesorios (ropa, calzado, carteras, fundas, correas) que para
-     el dispositivo electrónico en sí — sea porque el accesorio es más
-     fácil/barato de fabricar sin infringir nada, sea porque el
-     electrónico genuino se vende por canales mayoristas distintos a los
-     que indexa esta búsqueda. Si el usuario pidió explícitamente el
-     dispositivo (no el accesorio) y después de ~10 variantes solo
-     aparecen correas/fundas/protectores, decilo así de claro en vez de
-     ofrecer un accesorio como si fuera el producto.
+3a. **Wearables electrónicos SÍ están — en la pestaña Taobao.** La
+   conclusión vieja ("1688 solo tiene correas") era falsa: venía del bug
+   de espera corta y de mirar solo "Top". Re-buscando con el script
+   arreglado: WHOOP 5.0/MG original con 12 meses de membresía
+   ($295-414, 400-900 ventas), clon "factory version" ($51), y en Top
+   / 1688 decenas de clones sin pantalla genéricos ($5-17). Para
+   electrónica de marca: Taobao primero, nombre en inglés tal cual
+   ("whoop 5.0", "fitbit air") funciona; filtrá con --must excluyendo
+   表带/strap/保护/充电/配件 porque los accesorios dominan los títulos.
+   WHOOP: el equipo no sirve sin membresía — preferí listados que la
+   incluyan (含12个月会员) y avisale al usuario.
 
 2b. **La búsqueda de texto de Kakobuy degrada mal con queries de 3+
    calificadores.** Confirmado en 4 categorías distintas (electrónica,
@@ -110,19 +97,12 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
    vocabulario exacto que usan los vendedores) antes de armar frases
    largas y descriptivas.
 
-3. **Productos muy nuevos/nicho pueden no tener inventario todavía.** Para
-   un producto lanzado hace pocos meses (probado con un dispositivo
-   electrónico de 2026), decenas de variantes de texto en chino (incluso
-   sin nombrar la marca) devolvieron 0 resultados o matches totalmente
-   irrelevantes (el buscador degrada a matchear solo la palabra genérica
-   más común de la query, ej. "手环"/pulsera, ignorando el resto). Esto es
-   distinto al bloqueo de marca del punto 1: acá simplemente no hay
-   listados reales todavía porque las cadenas de réplica china no
-   alcanzaron a fabricar ese producto puntual. Si después de ~5-6
-   variantes de texto razonables seguís sin nada relevante, es más
-   probable que sea esto que un problema de tu query — decilo
-   explícitamente al usuario en vez de seguir generando variantes ad
-   infinitum.
+3. **"No hay inventario" casi nunca es cierto: sospechá de tu búsqueda
+   primero.** Fitbit Air (lanzado 2026) se había dado por inexistente;
+   con el script arreglado aparecieron 5+ originales en Taobao ($66-198,
+   hasta 950 ventas, uno con fotos de stock real) y clones a $8. Antes
+   de decir "no existe": ¿usaste el script (no esperas fijas)? ¿leíste
+   la pestaña Taobao? ¿probaste imagen con foto de catálogo limpia?
 
 4. **Priorizá candidatos con fotos de almacén/stock real** por sobre
    fotos de catálogo pulidas. Un listado que incluye fotos que se ven
