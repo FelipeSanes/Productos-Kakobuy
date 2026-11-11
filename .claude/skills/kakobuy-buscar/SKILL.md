@@ -45,6 +45,12 @@ Todo el estado de una búsqueda vive en `data/<slug-producto>/`:
    pestaña 1688 → aparecen homenajes con la misma silueta a $15-30.
    Ojo: en esa búsqueda 2 de 7 candidatos eran listados gancho (la
    miniatura no coincidía con la galería) — siempre mirá la galería.
+   Las miniaturas del listado cargan con lazy-load: el script ahora
+   scrollea cada card antes de leerlas (antes solo traía ~5 de 50). Para
+   elegir candidatos por imagen, armá una grilla de miniaturas con su
+   índice y miralas — los títulos de 1688/Taobao no siempre nombran la
+   marca, y la traducción automática rompe nombres (ej. 精工/Seiko sale
+   como "Fine" o "Jinggong").
 
 1. **Nunca busques el nombre de la marca en español/inglés tal cual.**
    Kakobuy bloquea con un error explícito ("Kakobuy cannot provide the

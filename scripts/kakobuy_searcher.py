@@ -91,6 +91,17 @@ def _wait_cards(page: Page, prev_first: str | None = None) -> int:
     return 0
 
 
+def _load_lazy_images(page: Page) -> None:
+    """Las miniaturas cargan con lazy-load: scrollear cada card a la vista."""
+    for card in page.locator(RESULT_CARD).all():
+        try:
+            card.scroll_into_view_if_needed(timeout=1000)
+        except Exception:
+            pass
+    page.wait_for_timeout(800)
+    page.evaluate("window.scrollTo(0, 0)")
+
+
 def _capture_url(page: Page, context, idx: int) -> str | None:
     new_page = None
     try:
@@ -118,6 +129,7 @@ def _collect_tabs(page: Page, context, origen: str, tabs: list[str], must, open_
                 print(f"  [{origen}] pestaña {tab}: 0 resultados")
                 continue
         prev_first = _first_title(page)
+        _load_lazy_images(page)
         cards = page.evaluate(READ_CARDS_JS)
         print(f"  [{origen}] pestaña {tab}: {len(cards)} resultados")
         opened = 0
